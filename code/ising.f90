@@ -44,24 +44,18 @@ program ising
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !! INPUT: Row and column size
-  integer,parameter :: SIZE = 30
-
-
-!!!!!!!!!!!!! Wolff Declarations !!!!!!!!!!!!!!!!!!!!!
-
-!! array of random reals and random integers (spins)
-  real :: randreal(0:SIZE-1, 0:SIZE-1)
-  integer :: wolffspin(0:SIZE-1, 0:SIZE-1)
-  integer :: swenwangspin(0:SIZE-1, 0:SIZE-1)
-
-!!!!!!!!!!!!! Metropolis Declarations !!!!!!!!!!!!!!!!
+  integer,parameter :: SIZE = 32
 
 !! INPUT: Final temperature (Kelvin x 100), final time, stepsizeloops
-  integer,parameter :: TEMPFINAL = 300, TIMEFINAL = 10000
+  integer,parameter :: TEMPFINAL = 350, TIMEFINAL = 100000
 
 !! fortran begins indexing from 1. Start it from 0 because the rand() starts from 0
   integer :: spin(0:SIZE-1,0:SIZE-1), temp, time
-  real(8) :: weight(-2:2)
+  real(8) :: weight(-2:2), spintotal
+  integer :: wolffspin(0:SIZE-1, 0:SIZE-1)
+  real(8) :: wolfftotal
+  integer :: swenwangspin(0:SIZE-1, 0:SIZE-1)
+  real(8) :: swenwangtotal
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -81,38 +75,55 @@ program ising
 !!  (for plot of magnetization vs. time)
 
 
-  do temp = 0,TEMPFINAL
+  do temp = 150,TEMPFINAL
 
-! Re-initialize the Metropolis lattice
-    spin(:,:) = 1       
-
-! Only 5 options for the exponent so calculate them once
-    weight = [exp(-800d0/temp),exp(-400d0/temp),1d0,exp(400d0/temp),exp(800d0/temp)]
-
-! Re-initialize Wolff lattice. All value in lattice must be 1 or -1
-    call random_number(randreal)
-    wolffspin = 2*nint(randreal)-1
-    call wolff(wolffspin, SIZE, temp/100d0)
-    
-    call random_number(randreal)
-    swenwangspin = 2*nint(randreal)-1
-    call swenwang(swenwangspin, SIZE, temp/100d0)
-
-    do time = 0,TIMEFINAL
-      call metropolis(spin, SIZE, weight)
-
-! We want time to print only once (choose an arbitrary temperature)
-      if (temp == 250) then
-        WRITE(16,*) sum(spin)/(SIZE**2*1d0), time
-      end if
+! Re-initialize Wolff lattice. All values in the lattice must be 1
+    wolffspin(:,:) = 1
+    wolfftotal = 0
+    do time = 1, TIMEFINAL, 100
+      call wolff(wolffspin, SIZE, temp/100d0)
+      wolfftotal = wolfftotal + abs(sum(wolffspin)/(SIZE**2*1d0))
     end do
 
+    wolfftotal = 100d0 * wolfftotal / TIMEFINAL
+    
+! Re-initialize Swendswon-Wang lattice. All values in the lattice must be 1
+    swenwangspin(:,:) = 1
+    swenwangtotal = 0
+    do time = 1, TIMEFINAL, 100
+      call swenwang(swenwangspin, SIZE, temp/100d0)
+      swenwangtotal = swenwangtotal + abs(sum(swenwangspin)/(SIZE**2*1d0))
+    end do
+
+    swenwangtotal = 100d0 * swenwangtotal / TIMEFINAL
+
+! Re-initialize the Metropolis lattice. All values in the lattice must be 1
+    spin(:,:) = 1
+    spintotal = 0       
+! Only 5 options for the exponent for metropolis so calculate them once
+    weight = [exp(-800d0/temp),exp(-400d0/temp),1d0,exp(400d0/temp),exp(800d0/temp)]
+    do time = 0,TIMEFINAL
+      call metropolis(spin, SIZE, weight)
+      spintotal = spintotal + abs(sum(spin)/(SIZE**2*1d0))
+! We want time to print only once (choose an arbitrary temperature)
+      if (temp == 250) then
+        WRITE(15,*) sum(spin)/(SIZE**2*1d0), time
+      end if
+    end do
+    spintotal = spintotal / TIMEFINAL
       
-    call plot_spin(spin, SIZE, temp/100d0)
-    WRITE(15,*) abs(sum(spin)/(SIZE**2*1d0)), temp/100d0
-    WRITE(17,*) abs(sum(swenwangspin)/(SIZE**2*1d0)), temp/100d0
-    WRITE(18,*) abs(sum(wolffspin)/(SIZE**2*1d0)), temp/100d0
+    call plot_spin(wolffspin, SIZE, temp/100d0)
+
+    WRITE(16,*) spintotal, temp/100d0
+    WRITE(17,*) swenwangtotal, temp/100d0
+    WRITE(18,*) wolfftotal, temp/100d0
+
+! Calculate magnetic susceptibility and print
+    WRITE(19,*) (spintotal**2)/(SIZE**2*1d0) - (spintotal/(SIZE**2*1d0))**2, temp/100d0
+    WRITE(20,*) (swenwangtotal**2)/(SIZE**2*1d0) - (swenwangtotal/(SIZE**2*1d0))**2, temp/100d0
+    WRITE(21,*) (wolfftotal**2)/(SIZE**2*1d0) - (wolfftotal/(SIZE**2*1d0))**2, temp/100d0
   end do
+
 !!! Close text files !!!                                                                                                                                                 
   call closetextfiles
   call plot_close()
@@ -125,15 +136,15 @@ contains
 
 subroutine opentextfiles
     integer :: OPEN_STATUS
-    OPEN(UNIT=15,FILE="metrop_mag_temp.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
-    if (OPEN_STATUS /= 0) then
-       STOP "------------Error, metrop_mag_temp file not opened properly------------"
-    endif
-    OPEN(UNIT=16,FILE="metrop_mag_time.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+    OPEN(UNIT=15,FILE="metrop_mag_time.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
     if (OPEN_STATUS /= 0) then
        STOP "------------Error, metrop_mag_time file not opened properly------------"
     endif
 
+    OPEN(UNIT=16,FILE="metrop_mag_temp.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+    if (OPEN_STATUS /= 0) then
+       STOP "------------Error, metrop_mag_temp file not opened properly------------"
+    endif
     OPEN(UNIT=17,FILE="swenwang_mag_temp.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
     if (OPEN_STATUS /= 0) then
        STOP "------------Error, swenwang_mag_temp file not opened properly------------"
@@ -142,15 +153,32 @@ subroutine opentextfiles
     if (OPEN_STATUS /= 0) then
        STOP "------------Error, wolff_mag_temp file not opened properly------------"
     endif
+
+    OPEN(UNIT=19,FILE="metrop_magsus_temp.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+    if (OPEN_STATUS /= 0) then
+       STOP "------------Error, metrop_magsus_temp file not opened properly------------"
+    endif
+    OPEN(UNIT=20,FILE="swenwang_magsus_temp.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+    if (OPEN_STATUS /= 0) then
+       STOP "------------Error, swenwang_magsus_temp file not opened properly------------"
+    endif
+    OPEN(UNIT=21,FILE="wolff_magsus_temp.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+    if (OPEN_STATUS /= 0) then
+       STOP "------------Error, wolff_magsus_temp file not opened properly------------"
+    endif
 end subroutine
 
 
 subroutine closetextfiles
     CLOSE(UNIT=15)
-    CLOSE(UNIT=16)
 
+    CLOSE(UNIT=16)
     CLOSE(UNIT=17)
     CLOSE(UNIT=18)
+
+    CLOSE(UNIT=19)
+    CLOSE(UNIT=20)
+    CLOSE(UNIT=21)
 end subroutine
 
 end program ising

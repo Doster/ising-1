@@ -59,6 +59,8 @@ contains
     bonds(:,:,1) = (r1 < (1 - exp(-2/temp))*spin*cshift(spin,shift=1,dim=2))
     bonds(:,:,2) = (r2 < (1 - exp(-2/temp))*spin*cshift(spin,shift=1,dim=1))
 
+    mark = .FALSE.
+
     do ix = 0, SIZE - 1
       do iy = 0, SIZE - 1
         call random_number(r3)
@@ -102,29 +104,31 @@ contains
     ix = floor(r1*SIZE)
     iy = floor(r2*SIZE)
 
+    mark = .FALSE.
+
     call growcluster(spin, SIZE, ix, iy, temp, mark, -spin(ix, iy))
   end subroutine
 
   subroutine growcluster(spin, SIZE, ix, iy, temp, mark, newspin)
     !! Passed parameters, intent(in) parameters cannot be altered
-    integer,intent(in) :: SIZE, ix, iy, newspin
+    integer,intent(in) :: SIZE, newspin
     real(8),intent(in) :: temp
-    integer,intent(inout) :: spin(0:SIZE-1, 0:SIZE-1)
+    integer :: spin(0:SIZE-1, 0:SIZE-1), ix, iy
     logical,intent(inout) :: mark(0:SIZE-1, 0:SIZE-1)
 
     spin(ix, iy) = newspin
     mark(ix, iy) = .TRUE.
-    if (.NOT. mark(modulo(ix + 1, SIZE), iy)) call tryadd(spin, SIZE, ix, iy, temp, mark, newspin)
-    if (.NOT. mark(modulo(ix - 1, SIZE), iy)) call tryadd(spin, SIZE, ix, iy, temp, mark, newspin)
-    if (.NOT. mark(ix, modulo(iy + 1, SIZE))) call tryadd(spin, SIZE, ix, iy, temp, mark, newspin)
-    if (.NOT. mark(ix, modulo(iy - 1, SIZE))) call tryadd(spin, SIZE, ix, iy, temp, mark, newspin)
+    if (.NOT.(mark(modulo(ix + 1, SIZE), iy))) call tryadd(spin, SIZE, modulo(ix + 1, SIZE), iy, temp, mark, newspin)
+    if (.NOT.(mark(modulo(ix - 1, SIZE), iy))) call tryadd(spin, SIZE, modulo(ix - 1, SIZE), iy, temp, mark, newspin)
+    if (.NOT.(mark(ix, modulo(iy + 1, SIZE)))) call tryadd(spin, SIZE, ix, modulo(iy + 1, SIZE), temp, mark, newspin)
+    if (.NOT.(mark(ix, modulo(iy - 1, SIZE)))) call tryadd(spin, SIZE, ix, modulo(iy - 1, SIZE), temp, mark, newspin)
   end subroutine
 
   subroutine tryadd(spin, SIZE, ix, iy, temp, mark, newspin)
     !! Passed parameters, intent(in) paramters cannot be altered
-    integer,intent(in) :: SIZE, ix, iy, newspin
+    integer,intent(in) :: SIZE, newspin
     real(8),intent(in) :: temp
-    integer,intent(inout) :: spin(0:SIZE-1, 0:SIZE-1)
+    integer :: spin(0:SIZE-1, 0:SIZE-1), ix, iy
     logical,intent(inout) :: mark(0:SIZE-1, 0:SIZE-1)
 
     !! Subroutine variable declerations
