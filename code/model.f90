@@ -2,9 +2,34 @@ module model
   implicit none
   
   private growcluster, tryadd, backtrack
-  public metropolis, swenwang, wolff
+  public metropolis, swenwang, wolff, energy
 
 contains
+
+  subroutine energy(spin, SIZE, en)
+    integer,intent(in) :: SIZE 
+    integer,intent(in) :: spin(0:SIZE-1,0:SIZE-1)
+    real(8),intent(inout) :: en
+
+    !! Subroutine variable declerations
+    integer :: ix,iy
+    real(8) :: st, sb, sl, sr !neighbour cells
+ 
+    !! Loop through all elements in the 2-D lattice and calculuate the total energy
+
+    do ix=1,SIZE
+       do iy=1, SIZE
+          !! Calculate energy due to the neighbors (the modulo takes into account the boundaries)
+          sl = spin(modulo(ix-1,SIZE), iy)
+          sr = spin(modulo(ix+1,SIZE), iy)
+          st = spin(ix, modulo(iy-1,SIZE))
+          sb = spin(ix, modulo(iy+1,SIZE))
+ 
+          en = en + spin(ix,iy) * (sl + sr + st + sb)       
+       enddo
+    enddo
+  end subroutine
+
 
   subroutine metropolis(spin, SIZE, weight)
     !! Passed parameters, intent(in) parameters cannot be altered

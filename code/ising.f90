@@ -51,12 +51,12 @@ program ising
 
 !! fortran begins indexing from 1. Start it from 0 because the rand() starts from 0
   integer :: spin(0:SIZE-1,0:SIZE-1), temp, time
-  real(8) :: weight(-2:2), spintotal
+  real(8) :: weight(-2:2), spintotal, spinmagavg2
   integer :: wolffspin(0:SIZE-1, 0:SIZE-1)
-  real(8) :: wolfftotal
+  real(8) :: wolfftotal, wolffmagavg2
   integer :: swenwangspin(0:SIZE-1, 0:SIZE-1)
-  real(8) :: swenwangtotal
-
+  real(8) :: swenwangtotal, swenmagavg2
+!  real(8) :: swenenergy, metropenergy, wolffenergy
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Main Body !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -77,33 +77,50 @@ program ising
 
   do temp = 150,TEMPFINAL
 
+
 ! Re-initialize Wolff lattice. All values in the lattice must be 1
     wolffspin(:,:) = 1
     wolfftotal = 0
+    wolffmagavg2 = 0
     do time = 1, TIMEFINAL, 100
       call wolff(wolffspin, SIZE, temp/100d0)
+      wolffmagavg2 = wolffmagavg2 + wolfftotal**2
       wolfftotal = wolfftotal + abs(sum(wolffspin)/(SIZE**2*1d0))
     end do
-
     wolfftotal = 100d0 * wolfftotal / TIMEFINAL
+    wolffmagavg2 = 100d0* wolffmagavg2 / TIMEFINAL
+
+!    wolffenergy = 0 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+!    call energy(wolffspin, SIZE, wolffenergy) !!!!!!!!!!!!!!!
+    
+
     
 ! Re-initialize Swendswon-Wang lattice. All values in the lattice must be 1
     swenwangspin(:,:) = 1
     swenwangtotal = 0
+    swenmagavg2 = 0
     do time = 1, TIMEFINAL, 100
       call swenwang(swenwangspin, SIZE, temp/100d0)
+      swenmagavg2 = swenmagavg2 + swenwangtotal**2
       swenwangtotal = swenwangtotal + abs(sum(swenwangspin)/(SIZE**2*1d0))
     end do
-
     swenwangtotal = 100d0 * swenwangtotal / TIMEFINAL
+    swenmagavg2 = 100d0* swenmagavg2 / TIMEFINAL
+
+!    swenenergy = 0
+!    call energy(swenwangspin, SIZE, swenenergy)
+
+
 
 ! Re-initialize the Metropolis lattice. All values in the lattice must be 1
     spin(:,:) = 1
     spintotal = 0       
+    spinmagavg2 = 0
 ! Only 5 options for the exponent for metropolis so calculate them once
     weight = [exp(-800d0/temp),exp(-400d0/temp),1d0,exp(400d0/temp),exp(800d0/temp)]
     do time = 0,TIMEFINAL
       call metropolis(spin, SIZE, weight)
+      spinmagavg2 = spinmagavg2 + spintotal**2
       spintotal = spintotal + abs(sum(spin)/(SIZE**2*1d0))
 ! We want time to print only once (choose an arbitrary temperature)
       if (temp == 250) then
@@ -111,18 +128,30 @@ program ising
       end if
     end do
     spintotal = spintotal / TIMEFINAL
-      
-    call plot_spin(wolffspin, SIZE, temp/100d0)
+    spinmagavg2 = spinmagavg2 / TIMEFINAL
 
+!    metropenergy = 0 
+!    call energy(spin, SIZE, metropenergy)
+
+     call plot_spin(wolffspin, SIZE, temp/100d0)
+
+! Print magnetization
     WRITE(16,*) spintotal, temp/100d0
     WRITE(17,*) swenwangtotal, temp/100d0
     WRITE(18,*) wolfftotal, temp/100d0
 
 ! Calculate magnetic susceptibility and print
-    WRITE(19,*) (spintotal**2)/(SIZE**2*1d0) - (spintotal/(SIZE**2*1d0))**2, temp/100d0
-    WRITE(20,*) (swenwangtotal**2)/(SIZE**2*1d0) - (swenwangtotal/(SIZE**2*1d0))**2, temp/100d0
-    WRITE(21,*) (wolfftotal**2)/(SIZE**2*1d0) - (wolfftotal/(SIZE**2*1d0))**2, temp/100d0
+    WRITE(19,*) (100d0/temp)*( spinmagavg2 - spintotal**2 ), temp/100d0
+    WRITE(20,*) (100d0/temp)*( wolffmagavg2 - wolfftotal**2 ), temp/100d0
+    WRITE(21,*) (100d0/temp)*( swenmagavg2 - swenwangtotal**2 ), temp/100d0
+
+! Print energy
+!    WRITE(22,*) metropenergy, temp/100d0 
+!    WRITE(23,*) wolffenergy, temp/100d0 
+!    WRITE(24,*) swenenergy, temp/100d0 
+
   end do
+
 
 !!! Close text files !!!                                                                                                                                                 
   call closetextfiles
@@ -166,6 +195,32 @@ subroutine opentextfiles
     if (OPEN_STATUS /= 0) then
        STOP "------------Error, wolff_magsus_temp file not opened properly------------"
     endif
+
+!    OPEN(UNIT=22,FILE="metrop_energy.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+!    if (OPEN_STATUS /= 0) then
+!       STOP "------------Error, metrop_energy file not opened properly------------"
+!    endif
+!    OPEN(UNIT=23,FILE="wolff_energy.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+!    if (OPEN_STATUS /= 0) then
+!       STOP "------------Error, wolff_energy file not opened properly------------"
+!    endif
+!    OPEN(UNIT=24,FILE="swen_energy.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+!    if (OPEN_STATUS /= 0) then
+!       STOP "------------Error, swen_energy file not opened properly------------"
+!    endif
+
+!    OPEN(UNIT=25,FILE="metrop_spec.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+!    if (OPEN_STATUS /= 0) then
+!       STOP "------------Error, metrop_spec file not opened properly------------"
+!    endif
+!    OPEN(UNIT=26,FILE="wolff_spec.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+!    if (OPEN_STATUS /= 0) then
+!       STOP "------------Error, wolff_spec file not opened properly------------"
+!    endif
+!    OPEN(UNIT=27,FILE="swen_spec.txt",STATUS="REPLACE",IOSTAT=OPEN_STATUS)
+!    if (OPEN_STATUS /= 0) then
+!       STOP "------------Error, swen_spec file not opened properly------------"
+!    endif
 end subroutine
 
 
@@ -179,6 +234,14 @@ subroutine closetextfiles
     CLOSE(UNIT=19)
     CLOSE(UNIT=20)
     CLOSE(UNIT=21)
+
+!    CLOSE(UNIT=22) 
+!    CLOSE(UNIT=23) 
+!    CLOSE(UNIT=24) 
+
+!    CLOSE(UNIT=25) 
+!    CLOSE(UNIT=26) 
+!    CLOSE(UNIT=27) 
 end subroutine
 
 end program ising
